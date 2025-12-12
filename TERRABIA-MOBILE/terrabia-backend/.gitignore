@@ -48,3 +48,8 @@ venv.bak/
 .DS_Store
 Thumbs.dbstatic/
 static/
+
+
+# Railway
+.railway/
+EOF
