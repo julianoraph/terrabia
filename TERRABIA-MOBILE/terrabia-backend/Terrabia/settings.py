@@ -73,17 +73,17 @@ TEMPLATES = [
 WSGI_APPLICATION = 'Terrabia.wsgi.application'
 ASGI_APPLICATION = 'Terrabia.asgi.application'
 
-# Channels (Redis ou InMemory)
+# Channels (Redis ou InMemory) - CONFIG PAR DÉFAUT POUR LE DEV
 CHANNEL_LAYERS = {
     "default": {
         "BACKEND": "channels.layers.InMemoryChannelLayer"   # marche sans Redis
     }
 }
 
-# Database → SQLite (parfait en dev)
+# Database → SQLite (parfait en dev) - CORRIGÉ : Cohérent avec requirements.txt
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
+        'ENGINE': 'django.db.backends.sqlite3',  # ← RESTE SQLite pour la simplicité en dev
         'NAME': BASE_DIR / 'db.sqlite3',
     }
 }
@@ -107,7 +107,7 @@ USE_TZ = True
 
 # Static & Media
 STATIC_URL = '/static/'
-STATICFILES_DIRS = [BASE_DIR / 'static']
+STATICFILES_DIRS = [BASE_DIR / 'static']  # ← DÉFINITION UNIQUE ICI
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 
 MEDIA_URL = '/media/'
@@ -201,6 +201,10 @@ if RAILWAY_ENV:
                 },
             }
         }
+    else:
+        # Si pas de Redis sur Railway, on désactive Channels pour la production
+        # Cela évite une erreur. Vous pouvez aussi retirer 'channels' et 'daphne' des INSTALLED_APPS.
+        CHANNEL_LAYERS = {}
     
     # ==================== CORS POUR FRONTEND VERCEL ====================
     CORS_ALLOW_ALL_ORIGINS = False
@@ -213,9 +217,6 @@ if RAILWAY_ENV:
     
     # Autoriser les credentials (cookies, auth headers)
     CORS_ALLOW_CREDENTIALS = True
-    
-    # ==================== STATIC FILES ====================
-    # Whitenoise est déjà configuré plus haut
     
     # ==================== SECURITY HTTPS ====================
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
@@ -237,27 +238,7 @@ if RAILWAY_ENV:
             'level': 'INFO',
         },
     }
-    
-    # ==================== MEDIA FILES (UPLOADS) ====================
-    # Sur Railway, utilise un service externe comme Cloudinary ou AWS S3
-    # DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
-    # AWS_ACCESS_KEY_ID = os.environ.get('AWS_ACCESS_KEY_ID')
-    # AWS_SECRET_ACCESS_KEY = os.environ.get('AWS_SECRET_ACCESS_KEY')
-    # AWS_STORAGE_BUCKET_NAME = os.environ.get('AWS_STORAGE_BUCKET_NAME')
-    # AWS_S3_REGION_NAME = os.environ.get('AWS_S3_REGION_NAME')
-    
-else:
-    # ==================== DÉVELOPPEMENT LOCAL ====================
-    
-    # Pour éviter les warnings static en dev
-    STATICFILES_DIRS = [BASE_DIR / "static"]
-    
-    # CORS dev
-    CORS_ALLOW_ALL_ORIGINS = True
-    
-    # Channels dev (InMemory)
-    CHANNEL_LAYERS = {
-        "default": {
-            "BACKEND": "channels.layers.InMemoryChannelLayer"
-        }
-    }
+
+# Le bloc 'else:' pour le développement local a été SUPPRIMÉ car
+# les valeurs par défaut définies en haut du fichier sont déjà parfaites pour le dev.
+# (DATABASES['default'], CHANNEL_LAYERS, STATICFILES_DIRS, CORS_ALLOW_ALL_ORIGINS)
