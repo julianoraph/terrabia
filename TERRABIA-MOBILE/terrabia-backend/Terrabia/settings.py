@@ -231,7 +231,67 @@ RAILWAY_ENV = os.environ.get('RAILWAY_ENVIRONMENT') or os.environ.get('DATABASE_
 
 if RAILWAY_ENV:
     # ==================== PRODUCTION SUR RAILWAY ====================
+     # ============================================================================
+# CONFIGURATION RAILWAY (PRODUCTION)
+# ============================================================================
+
+# Détection de l'environnement Railway
+RAILWAY_ENV = os.environ.get('RAILWAY_ENVIRONMENT') or os.environ.get('DATABASE_URL')
+
+if RAILWAY_ENV:
+    # ==================== PRODUCTION SUR RAILWAY ====================
     
+    # Sécurité
+    DEBUG = False
+    SECRET_KEY = os.environ.get('SECRET_KEY', SECRET_KEY)
+    
+    # Hosts autorisés
+    ALLOWED_HOSTS = [
+        '.up.railway.app',
+        '.railway.app',
+        'localhost',
+        '127.0.0.1',
+    ]
+    
+    # ==================== DATABASE POSTGRESQL (CORRIGÉ) ====================
+    # Essayer d'utiliser dj_database_url, sinon utiliser les variables directes
+    database_config = {}
+    
+    if os.environ.get('DATABASE_URL'):
+        try:
+            import dj_database_url
+            database_config = dj_database_url.config(
+                default=os.environ.get('DATABASE_URL'),
+                conn_max_age=600,
+                ssl_require=True
+            )
+        except ImportError:
+            # Fallback: construire la config manuellement depuis les variables Railway
+            database_config = {
+                'ENGINE': 'django.db.backends.postgresql',
+                'NAME': os.environ.get('PGDATABASE', 'railway'),
+                'USER': os.environ.get('PGUSER', 'postgres'),
+                'PASSWORD': os.environ.get('PGPASSWORD', ''),
+                'HOST': os.environ.get('PGHOST', 'localhost'),
+                'PORT': os.environ.get('PGPORT', '5432'),
+            }
+    else:
+        # Si DATABASE_URL n'existe pas, utiliser les variables PostgreSQL standard
+        database_config = {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': os.environ.get('PGDATABASE', 'railway'),
+            'USER': os.environ.get('PGUSER', 'postgres'),
+            'PASSWORD': os.environ.get('PGPASSWORD', ''),
+            'HOST': os.environ.get('PGHOST', 'localhost'),
+            'PORT': os.environ.get('PGPORT', '5432'),
+        }
+    
+    DATABASES = {
+        'default': database_config
+    }
+    
+    # ... reste de ta configuration Railway ...
+
     # Sécurité
     DEBUG = False
     SECRET_KEY = os.environ.get('SECRET_KEY', SECRET_KEY)
