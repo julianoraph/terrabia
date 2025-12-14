@@ -3,6 +3,7 @@ Django settings for Terrabia project.
 """
 
 import os
+import logging.config
 from pathlib import Path
 from datetime import timedelta
 from decouple import config  # même si tu n'utilises pas .env pour l'instant
@@ -159,6 +160,69 @@ SWAGGER_SETTINGS = {
 }
 
 # ============================================================================
+# CONFIGURATION DES LOGS (UNIFIÉE POUR TOUS LES ENVIRONNEMENTS)
+# ============================================================================
+
+# Désactive la configuration automatique de Django pour éviter l'erreur configure_logging
+LOGGING_CONFIG = None
+
+# Configuration unique des logs (appliquée dans tous les environnements)
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} {module} {message}',
+            'style': '{',
+        },
+        'simple': {
+            'format': '{levelname} {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'simple',
+        },
+    },
+    'root': {
+        'handlers': ['console'],
+        'level': 'WARNING',
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'django.request': {
+            'handlers': ['console'],
+            'level': 'ERROR',
+            'propagate': False,
+        },
+        'users': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'products': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'orders': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+    },
+}
+
+# Applique manuellement la configuration des logs
+logging.config.dictConfig(LOGGING)
+
+# ============================================================================
 # CONFIGURATION RAILWAY (PRODUCTION)
 # ============================================================================
 
@@ -203,7 +267,6 @@ if RAILWAY_ENV:
         }
     else:
         # Si pas de Redis sur Railway, on désactive Channels pour la production
-        # Cela évite une erreur. Vous pouvez aussi retirer 'channels' et 'daphne' des INSTALLED_APPS.
         CHANNEL_LAYERS = {}
     
     # ==================== CORS POUR FRONTEND VERCEL ====================
@@ -224,21 +287,8 @@ if RAILWAY_ENV:
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
     
-    # ==================== LOGGING ====================
-    LOGGING = {
-        'version': 1,
-        'disable_existing_loggers': False,
-        'handlers': {
-            'console': {
-                'class': 'logging.StreamHandler',
-            },
-        },
-        'root': {
-            'handlers': ['console'],
-            'level': 'INFO',
-        },
-    }
+    # Note: La configuration LOGGING reste celle définie plus haut
+    # Pas besoin de la redéfinir ici
 
-# Le bloc 'else:' pour le développement local a été SUPPRIMÉ car
+# Pas de bloc 'else:' pour le développement local car
 # les valeurs par défaut définies en haut du fichier sont déjà parfaites pour le dev.
-# (DATABASES['default'], CHANNEL_LAYERS, STATICFILES_DIRS, CORS_ALLOW_ALL_ORIGINS)
