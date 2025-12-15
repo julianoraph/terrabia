@@ -3,13 +3,17 @@ Django settings for Terrabia project.
 """
 
 import os
+import sys
 import logging.config
 from pathlib import Path
 from datetime import timedelta
-from decouple import config  # même si tu n'utilises pas .env pour l'instant
 
 # Build paths
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+# Ajouter le répertoire racine au PYTHONPATH pour éviter les erreurs d'import
+if BASE_DIR not in sys.path:
+    sys.path.insert(0, str(BASE_DIR))
 
 # SECURITY
 SECRET_KEY = 'django-insecure-%+qa135p%daj+(8ora1u4)!#g91#lez0j@h8#n1e*otcd2=cra'
@@ -18,7 +22,6 @@ ALLOWED_HOSTS = ['*']  # à restreindre en prod
 
 # Application definition
 INSTALLED_APPS = [
-    'daphne',  # ← DOIT ÊTRE EN PREMIER pour ASGI/Channels
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -33,6 +36,7 @@ INSTALLED_APPS = [
     'django_filters',
     'corsheaders',
     'channels',
+    'daphne',  # Daphne après Channels
 
     # Local apps
     'users',
@@ -43,9 +47,9 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
-    'whitenoise.middleware.WhiteNoiseMiddleware',  # ← AJOUTÉ pour static files
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
-    'corsheaders.middleware.CorsMiddleware',          # ← CORS avant CommonMiddleware
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
@@ -58,7 +62,7 @@ ROOT_URLCONF = 'Terrabia.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [BASE_DIR / 'templates'],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -77,14 +81,14 @@ ASGI_APPLICATION = 'Terrabia.asgi.application'
 # Channels (Redis ou InMemory) - CONFIG PAR DÉFAUT POUR LE DEV
 CHANNEL_LAYERS = {
     "default": {
-        "BACKEND": "channels.layers.InMemoryChannelLayer"   # marche sans Redis
+        "BACKEND": "channels.layers.InMemoryChannelLayer"
     }
 }
 
-# Database → SQLite (parfait en dev) - CORRIGÉ : Cohérent avec requirements.txt
+# Database → SQLite (parfait en dev)
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',  # ← RESTE SQLite pour la simplicité en dev
+        'ENGINE': 'django.db.backends.sqlite3',
         'NAME': BASE_DIR / 'db.sqlite3',
     }
 }
@@ -108,7 +112,7 @@ USE_TZ = True
 
 # Static & Media
 STATIC_URL = '/static/'
-STATICFILES_DIRS = [BASE_DIR / 'static']  # ← DÉFINITION UNIQUE ICI
+STATICFILES_DIRS = [BASE_DIR / 'static']
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 
 MEDIA_URL = '/media/'
@@ -120,7 +124,7 @@ STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 # Default primary key
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# DRF + JWT (LA PARTIE CRUCIALE)
+# DRF + JWT
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
@@ -163,10 +167,10 @@ SWAGGER_SETTINGS = {
 # CONFIGURATION DES LOGS (UNIFIÉE POUR TOUS LES ENVIRONNEMENTS)
 # ============================================================================
 
-# Désactive la configuration automatique de Django pour éviter l'erreur configure_logging
+# Désactive la configuration automatique de Django
 LOGGING_CONFIG = None
 
-# Configuration unique des logs (appliquée dans tous les environnements)
+# Configuration unique des logs
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
@@ -216,6 +220,11 @@ LOGGING = {
             'level': 'INFO',
             'propagate': False,
         },
+        'chat': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
     },
 }
 
@@ -223,78 +232,24 @@ LOGGING = {
 logging.config.dictConfig(LOGGING)
 
 # ============================================================================
-# CONFIGURATION RAILWAY (PRODUCTION)
+# DÉTECTION ET CONFIGURATION RAILWAY (PRODUCTION)
 # ============================================================================
 
 # Détection de l'environnement Railway
-RAILWAY_ENV = os.environ.get('RAILWAY_ENVIRONMENT') or os.environ.get('DATABASE_URL')
+RAILWAY_ENV = os.environ.get('RAILWAY_ENVIRONMENT')
 
 if RAILWAY_ENV:
-    # ==================== PRODUCTION SUR RAILWAY ====================
-     # ============================================================================
-# CONFIGURATION RAILWAY (PRODUCTION)
-# ============================================================================
-
-# Détection de l'environnement Railway
-RAILWAY_ENV = os.environ.get('RAILWAY_ENVIRONMENT') or os.environ.get('DATABASE_URL')
-
-if RAILWAY_ENV:
-    # ==================== PRODUCTION SUR RAILWAY ====================
+    print("🚀 Configuration Railway détectée - Mode PRODUCTION")
     
     # Sécurité
     DEBUG = False
-    SECRET_KEY = os.environ.get('SECRET_KEY', SECRET_KEY)
     
-    # Hosts autorisés
-    ALLOWED_HOSTS = [
-        '.up.railway.app',
-        '.railway.app',
-        'localhost',
-        '127.0.0.1',
-    ]
-    
-    # ==================== DATABASE POSTGRESQL (CORRIGÉ) ====================
-    # Essayer d'utiliser dj_database_url, sinon utiliser les variables directes
-    database_config = {}
-    
-    if os.environ.get('DATABASE_URL'):
-        try:
-            import dj_database_url
-            database_config = dj_database_url.config(
-                default=os.environ.get('DATABASE_URL'),
-                conn_max_age=600,
-                ssl_require=True
-            )
-        except ImportError:
-            # Fallback: construire la config manuellement depuis les variables Railway
-            database_config = {
-                'ENGINE': 'django.db.backends.postgresql',
-                'NAME': os.environ.get('PGDATABASE', 'railway'),
-                'USER': os.environ.get('PGUSER', 'postgres'),
-                'PASSWORD': os.environ.get('PGPASSWORD', ''),
-                'HOST': os.environ.get('PGHOST', 'localhost'),
-                'PORT': os.environ.get('PGPORT', '5432'),
-            }
+    # Utiliser la SECRET_KEY de Railway si disponible
+    RAILWAY_SECRET_KEY = os.environ.get('SECRET_KEY')
+    if RAILWAY_SECRET_KEY:
+        SECRET_KEY = RAILWAY_SECRET_KEY
     else:
-        # Si DATABASE_URL n'existe pas, utiliser les variables PostgreSQL standard
-        database_config = {
-            'ENGINE': 'django.db.backends.postgresql',
-            'NAME': os.environ.get('PGDATABASE', 'railway'),
-            'USER': os.environ.get('PGUSER', 'postgres'),
-            'PASSWORD': os.environ.get('PGPASSWORD', ''),
-            'HOST': os.environ.get('PGHOST', 'localhost'),
-            'PORT': os.environ.get('PGPORT', '5432'),
-        }
-    
-    DATABASES = {
-        'default': database_config
-    }
-    
-    # ... reste de ta configuration Railway ...
-
-    # Sécurité
-    DEBUG = False
-    SECRET_KEY = os.environ.get('SECRET_KEY', SECRET_KEY)
+        print("⚠️ ATTENTION: SECRET_KEY Railway non trouvée, utilisation de la clé de dev")
     
     # Hosts autorisés
     ALLOWED_HOSTS = [
@@ -302,43 +257,98 @@ if RAILWAY_ENV:
         '.railway.app',
         'localhost',
         '127.0.0.1',
+        # Ajoutez ici votre domaine personnalisé si vous en avez un
     ]
     
     # ==================== DATABASE POSTGRESQL ====================
-    import dj_database_url
-    DATABASES = {
-        'default': dj_database_url.config(
-            default=os.environ.get('DATABASE_URL'),
-            conn_max_age=600,
-            ssl_require=True
-        )
-    }
+    # Vérifier d'abord si DATABASE_URL existe
+    DATABASE_URL = os.environ.get('DATABASE_URL')
+    
+    if DATABASE_URL:
+        try:
+            # Essayer d'importer dj_database_url
+            import importlib.util
+            
+            # Vérifier si dj_database_url est installé
+            dj_database_url_spec = importlib.util.find_spec("dj_database_url")
+            if dj_database_url_spec is not None:
+                import dj_database_url
+                DATABASES = {
+                    'default': dj_database_url.config(
+                        default=DATABASE_URL,
+                        conn_max_age=600,
+                        ssl_require=True
+                    )
+                }
+                print("✅ Configuration PostgreSQL via DATABASE_URL")
+            else:
+                print("⚠️ dj_database_url non installé, tentative de configuration manuelle")
+                raise ImportError("dj_database_url non installé")
+        except Exception as e:
+            print(f"⚠️ Erreur avec dj_database_url: {e}")
+            # Fallback: configuration manuelle depuis les variables Railway
+            DATABASES = {
+                'default': {
+                    'ENGINE': 'django.db.backends.postgresql',
+                    'NAME': os.environ.get('PGDATABASE', 'railway'),
+                    'USER': os.environ.get('PGUSER', 'postgres'),
+                    'PASSWORD': os.environ.get('PGPASSWORD', ''),
+                    'HOST': os.environ.get('PGHOST', 'localhost'),
+                    'PORT': os.environ.get('PGPORT', '5432'),
+                    'CONN_MAX_AGE': 600,
+                    'OPTIONS': {
+                        'sslmode': 'require',
+                    }
+                }
+            }
+            print("✅ Configuration PostgreSQL via variables Railway (fallback)")
+    else:
+        print("⚠️ DATABASE_URL non trouvé, vérifiez vos variables d'environnement Railway")
     
     # ==================== REDIS POUR CHANNELS ====================
     REDIS_URL = os.environ.get('REDIS_URL')
     if REDIS_URL:
-        CHANNEL_LAYERS = {
-            "default": {
-                "BACKEND": "channels_redis.core.RedisChannelLayer",
-                "CONFIG": {
-                    "hosts": [REDIS_URL],
-                },
-            }
-        }
+        try:
+            # Vérifier si channels_redis est installé
+            channels_redis_spec = importlib.util.find_spec("channels_redis")
+            if channels_redis_spec is not None:
+                CHANNEL_LAYERS = {
+                    "default": {
+                        "BACKEND": "channels_redis.core.RedisChannelLayer",
+                        "CONFIG": {
+                            "hosts": [REDIS_URL],
+                        },
+                    }
+                }
+                print("✅ Redis configuré pour Channels")
+            else:
+                print("⚠️ channels_redis non installé")
+                CHANNEL_LAYERS = {}
+        except Exception as e:
+            print(f"⚠️ Erreur avec channels_redis: {e}")
+            CHANNEL_LAYERS = {}
     else:
-        # Si pas de Redis sur Railway, on désactive Channels pour la production
+        print("⚠️ REDIS_URL non trouvé, Channels désactivé en production")
         CHANNEL_LAYERS = {}
     
-    # ==================== CORS POUR FRONTEND VERCEL ====================
+    # ==================== CORS POUR FRONTEND ====================
     CORS_ALLOW_ALL_ORIGINS = False
-    CORS_ALLOWED_ORIGINS = [
-        "https://terrabia-jb7p.vercel.app",
-        "https://terrabia.vercel.app",
-        "http://localhost:3000",  # Dev local
-        "http://127.0.0.1:3000",  # Dev local
-    ]
     
-    # Autoriser les credentials (cookies, auth headers)
+    # Récupérer les origines depuis les variables d'environnement ou utiliser les valeurs par défaut
+    cors_origins = os.environ.get('CORS_ALLOWED_ORIGINS', '').split(',')
+    if cors_origins and cors_origins[0]:
+        CORS_ALLOWED_ORIGINS = [origin.strip() for origin in cors_origins if origin.strip()]
+    else:
+        CORS_ALLOWED_ORIGINS = [
+            "https://terrabia-jb7p.vercel.app",
+            "https://terrabia.vercel.app",
+            "http://localhost:3000",
+            "http://127.0.0.1:3000",
+        ]
+    
+    print(f"✅ CORS autorisés: {CORS_ALLOWED_ORIGINS}")
+    
+    # Autoriser les credentials
     CORS_ALLOW_CREDENTIALS = True
     
     # ==================== SECURITY HTTPS ====================
@@ -347,8 +357,7 @@ if RAILWAY_ENV:
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
     
-    # Note: La configuration LOGGING reste celle définie plus haut
-    # Pas besoin de la redéfinir ici
-
-# Pas de bloc 'else:' pour le développement local car
-# les valeurs par défaut définies en haut du fichier sont déjà parfaites pour le dev.
+    print("✅ Configuration de sécurité HTTPS activée")
+else:
+    print("💻 Mode DÉVELOPPEMENT local")
+    # Les valeurs par défaut définies en haut restent actives
